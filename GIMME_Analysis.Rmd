@@ -1,0 +1,755 @@
+---
+title: "GIMME Analysis"
+author: "Leigh Gayle Goetschius"
+date: "Date of Last Edit: `r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#install.packages('gimme')
+library(gimme);
+library(naniar);
+library(tidyr);
+library(tidyverse);
+library(ggplot2);
+library(data.table);
+library(kableExtra);
+
+```
+
+```{r package organization, include=FALSE}
+# Organizing package information for table
+packages <- c("gimme")
+display <- c("Package","Title", "Maintainer", "Version", "URL")
+table <- matrix(NA, 1, NROW(display), dimnames = list(1, display))
+for(i in 1:NROW(packages)){
+list <- packageDescription(packages[i])
+table <- rbind(table, matrix(unlist(list[c(display)]), 1, NROW(display), byrow = T))
+}
+table[,NROW(display)] <- stringr::str_extract(table[,NROW(display)], ".+,")
+
+
+```
+#### Packages Used
+```{r}
+# Table of packages
+kable(table[-1,], format = "html", align = "c") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+### R Version Used
+```{r}
+R.version.string
+```
+
+## Running GIMME Analysis with Group and Individual Only
+```{r, eval = FALSE}
+setwd('/nfs/turbo/lsa-csmonk/FF_Data/Working_Files/Resting/GIMME/')
+gimmeSEM(data = 'data_113018',
+         out = 'output_newcode_012419',
+         sep = '',
+         header = FALSE,
+         ar = TRUE,
+         plot = TRUE,
+         sub_feature = "lag & contemp",
+         confirm_subgroup = NULL,
+         paths = NULL,
+         exogenous = NULL,
+         ex_lag = FALSE,
+         conv_vars = NULL,
+         conv_length = 16,
+         conv_interval = 1,
+         mult_vars = NULL,
+         mean_center_mult = FALSE,
+         standardize = TRUE,
+         groupcutoff = .75,
+         subcutoff = .5,
+         diagnos = FALSE)
+```
+
+## Running GIMME Analysis with Group, Subgroup, and Individual Levels
+```{r, eval = FALSE}
+setwd('/nfs/turbo/lsa-csmonk/FF_Data/Working_Files/Resting/GIMME/')
+gimmeSEM(data = 'data_113018',
+         out = 'output_subgroup_confirmation_011819',
+         sep = '',
+         header = FALSE,
+         ar = TRUE,
+         plot = TRUE,
+         sub_feature = "lag & contemp",
+         subgroup = TRUE,
+         confirm_subgroup = NULL,
+         paths = NULL,
+         exogenous = NULL,
+         ex_lag = FALSE,
+         conv_vars = NULL,
+         conv_length = 16,
+         conv_interval = 1,
+         mult_vars = NULL,
+         mean_center_mult = FALSE,
+         standardize = TRUE,
+         groupcutoff = .75,
+         subcutoff = .25,
+         diagnos = FALSE)
+```
+
+
+# Installing the updated packaged for GIMME subgroup to make sure it doesn't change results
+```{r, eval = FALSE}
+#install.packages("devtools")
+library(devtools)
+install_github("GatesLab/gimme", subdir="gimme")
+```
+
+### Then Restart R 
+
+```{r, eval=FALSE}
+library(gimme)
+```
+
+```{r, eval = FALSE}
+setwd('/nfs/turbo/lsa-csmonk/FF_Data/Working_Files/Resting/GIMME/')
+gimmeSEM(data = 'data_113018',
+         out = 'output_subgroup_v5.0_linux_022819_2',
+         sep = '',
+         header = FALSE,
+         ar = TRUE,
+         plot = TRUE,
+         sub_feature = "lag & contemp",
+         subgroup = TRUE,
+         confirm_subgroup = NULL,
+         paths = NULL,
+         exogenous = NULL,
+         conv_vars = NULL,
+         conv_length = 16,
+         conv_interval = 1,
+         mult_vars = NULL,
+         mean_center_mult = FALSE,
+         standardize = TRUE,
+         groupcutoff = .75,
+         subcutoff = .25,
+         diagnos = FALSE)
+```
+
+## Now that the GIMME Analyses is complete, working on making sense of the data
+
+```{r, eval = FALSE}
+
+V2_V7 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V2_pred_V7_group.csv')
+V2_V9 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V2_pred_V9_group.csv')
+V3_V4 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V3_pred_V4_group.csv')
+V4_V11 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V4_pred_V11_group.csv')
+V5_V12 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V5_pred_V12_group.csv')
+V5_V7 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V5_pred_V7_group.csv')
+V6_V7 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V6_pred_V7_group.csv')
+V6_V9 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V6_pred_V9_group.csv')
+V7_V12 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V7_pred_V12_group.csv')
+V7_V14 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V7_pred_V14_group.csv')
+V8_V1 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V8_pred_V1_group.csv')
+V8_V11 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V8_pred_V11_group.csv')
+V9_V4 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V9_pred_V4_group.csv')
+V9_V5 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V9_pred_V5_group.csv')
+V10_V11 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V10_pred_V11_group.csv')
+V10_V3 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V10_pred_V3_group.csv')
+V11_V7 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V11_pred_V7_group.csv')
+V13_V14 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V13_pred_V14_group.csv')
+V13_V6 = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_betas/V13_pred_V6_group.csv')
+```
+
+
+```{r, eval=FALSE}
+V2_V7$V2_V7_beta = V2_V7$beta
+V2_V7$V2_V7_se = V2_V7$se
+V2_V7$V2_V7_p = V2_V7$pval
+
+V2_V9$V2_V9_beta = V2_V9$beta
+V2_V9$V2_V9_se = V2_V9$se
+V2_V9$V2_V9_p = V2_V9$pval
+
+V3_V4$V3_V4_beta = V3_V4$beta
+V3_V4$V3_V4_se = V3_V4$se
+V3_V4$V3_V4_p = V3_V4$pval
+
+V4_V11$V4_V11_beta = V4_V11$beta
+V4_V11$V4_V11_se = V4_V11$se
+V4_V11$V4_V11_p = V4_V11$pval
+
+V5_V12$V5_V12_beta = V5_V12$beta
+V5_V12$V5_V12_se = V5_V12$se
+V5_V12$V5_V12_p = V5_V12$pval
+
+V5_V7$V5_V7_beta = V5_V7$beta
+V5_V7$V5_V7_se = V5_V7$se
+V5_V7$V5_V7_p = V5_V7$pval
+
+V6_V7$V6_V7_beta = V6_V7$beta
+V6_V7$V6_V7_se = V6_V7$se
+V6_V7$V6_V7_p = V6_V7$pval
+
+V6_V9$V6_V9_beta = V6_V9$beta
+V6_V9$V6_V9_se = V6_V9$se
+V6_V9$V6_V9_p = V6_V9$pval
+
+V7_V12$V7_V12_beta = V7_V12$beta
+V7_V12$V7_V12_se = V7_V12$se
+V7_V12$V7_V12_p = V7_V12$pval
+
+V7_V14$V7_V14_beta = V7_V14$beta
+V7_V14$V7_V14_se = V7_V14$se
+V7_V14$V7_V14_p = V7_V14$pval
+
+V8_V1$V8_V1_beta = V8_V1$beta
+V8_V1$V8_V1_se = V8_V1$se
+V8_V1$V8_V1_p = V8_V1$pval
+
+V8_V11$V8_V11_beta = V8_V11$beta
+V8_V11$V8_V11_se = V8_V11$se
+V8_V11$V8_V11_p = V8_V11$pval
+
+V9_V4$V9_V4_beta = V9_V4$beta
+V9_V4$V9_V4_se = V9_V4$se
+V9_V4$V9_V4_p = V9_V4$pval
+
+V9_V5$V9_V5_beta = V9_V5$beta
+V9_V5$V9_V5_se = V9_V5$se
+V9_V5$V9_V5_p = V9_V5$pval
+
+V10_V11$V10_V11_beta = V10_V11$beta
+V10_V11$V10_V11_se = V10_V11$se
+V10_V11$V10_V11_p = V10_V11$pval
+
+V10_V3$V10_V3_beta = V10_V3$beta
+V10_V3$V10_V3_se = V10_V3$se
+V10_V3$V10_V3_p = V10_V3$pval
+
+V11_V7$V11_V7_beta = V11_V7$beta
+V11_V7$V11_V7_se = V11_V7$se
+V11_V7$V11_V7_p = V11_V7$pval
+
+V13_V14$V13_V14_beta = V13_V14$beta
+V13_V14$V13_V14_se = V13_V14$se
+V13_V14$V13_V14_p = V13_V14$pval
+
+V13_V6$V13_V6_beta = V13_V6$beta
+V13_V6$V13_V6_se = V13_V6$se
+V13_V6$V13_V6_p = V13_V6$pval
+
+```
+
+```{r, eval=FALSE}
+V2_V7 = V2_V7[c('file','V2_V7_beta','V2_V7_se','V2_V7_p')]
+
+V2_V9 = V2_V9[c('file','V2_V9_beta','V2_V9_se','V2_V9_p')]
+
+V3_V4 = V3_V4[c('file','V3_V4_beta','V3_V4_se','V3_V4_p')]
+
+V4_V11 = V4_V11[c('file','V4_V11_beta','V4_V11_se','V4_V11_p')]
+
+V5_V12 = V5_V12[c('file','V5_V12_beta','V5_V12_se','V5_V12_p')]
+
+V5_V7 = V5_V7[c('file','V5_V7_beta','V5_V7_se','V5_V7_p')]
+
+V6_V7 = V6_V7[c('file','V6_V7_beta','V6_V7_se','V6_V7_p')]
+
+V6_V9 = V6_V9[c('file','V6_V9_beta','V6_V9_se','V6_V9_p')]
+
+V7_V12 = V7_V12[c('file','V7_V12_beta','V7_V12_se','V7_V12_p')]
+
+V7_V14 = V7_V14[c('file','V7_V14_beta','V7_V14_se','V7_V14_p')]
+
+V8_V1 = V8_V1[c('file','V8_V1_beta','V8_V1_se','V8_V1_p')]
+
+V8_V11 = V8_V11[c('file','V8_V11_beta','V8_V11_se','V8_V11_p')]
+
+V9_V4 = V9_V4[c('file','V9_V4_beta','V9_V4_se','V9_V4_p')]
+
+V9_V5 = V9_V5[c('file','V9_V5_beta','V9_V5_se','V9_V5_p')]
+
+V10_V11 = V10_V11[c('file','V10_V11_beta','V10_V11_se','V10_V11_p')]
+
+V10_V3 = V10_V3[c('file','V10_V3_beta','V10_V3_se','V10_V3_p')]
+
+V11_V7 = V11_V7[c('file','V11_V7_beta','V11_V7_se','V11_V7_p')]
+
+V13_V14 = V13_V14[c('file','V13_V14_beta','V13_V14_se','V13_V14_p')]
+
+V13_V6 = V13_V6[c('file','V13_V6_beta','V13_V6_se','V13_V6_p')]
+
+```
+
+
+#### Let's make a nice large sheet
+
+```{r, eval=FALSE}
+
+group_data = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/Group_Data.csv')
+
+```
+
+```{r, eval=FALSE}
+group_data = merge(group_data, c(V2_V7, V2_V9,V3_V4,V4_V11,V5_V12,V5_V7,V6_V7,V6_V9,V7_V12,V7_V14,V8_V1,V8_V11,V9_V4,V9_V5,V10_V11,V10_V3,V11_V7,V13_V14,V13_V6), by = 'file')
+```
+
+```{r, eval=FALSE}
+write.csv(group_data, '/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_data_all.csv')
+```
+
+#### Now adding the individual path estimates
+
+```{r, eval=FALSE}
+group_data = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_data_all.csv')
+
+Within_SN = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/indiv_path_counts/Within_SN_Connections_012119.csv')
+
+Within_DMN = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/indiv_path_counts/Within_DMN_Connections_012119.csv')
+
+Btwn_DMN_SN = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/indiv_path_counts/Btwn_DMN_SN_Connections_012119.csv')
+
+Btwn_SN_DMN = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/indiv_path_counts/Btwn_SN_DMN_Connections_012119.csv')
+
+```
+
+```{r, eval=FALSE}
+group_data_wIndiv = merge(group_data, c(Within_SN, Within_DMN, Btwn_DMN_SN, Btwn_SN_DMN), by = "id")
+```
+
+#### Write it all out
+
+```{r, eval=FALSE}
+write.csv(group_data_wIndiv, '/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_data_wIndiv_012119.csv')
+```
+
+### Incorporating External Variables
+```{r, eval=FALSE}
+data = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_data_wIndiv_012119.csv')
+```
+
+```{r, eval=FALSE}
+mental_health = read.csv('/Users/leighgayle/Box Sync/FF_Demographics/MentalHealthFactorScores_100218.csv')
+data = merge(data,mental_health, by = "id_short")
+```
+
+```{r, eval=FALSE}
+VESD = read.csv('/Users/leighgayle/Box Sync/ThreatDep_Probtrack_Amygdala/ThreatDep_ToShare_080218.csv')
+VESD$id_short = VESD$ff_id
+VESD = VESD[ c("id_short","ThreatCompc","DepCompc","ThreatDepInt")]
+data = merge(data, VESD, by = "id_short")
+
+```
+
+```{r, eval=FALSE}
+demos = read.csv('/Users/leighgayle/Box Sync/FF_Demographics/FullSample_Race_Gender_Age_Puberty_012319.csv')
+data = merge(data, demos, by = "id_short")
+
+data <- subset(data, select = -c(X, X.1, X.2, X.3, X.4, X.5, X.6, ff_id, ID))
+
+```
+
+```{r, eval=FALSE}
+current_life_stress = read.csv('/Users/leighgayle/Box Sync/FF_Demographics/ALES_clean_101818.csv')
+current_life_stress$id_short = current_life_stress$id
+current_life_stress = current_life_stress[ c("id_short", "sum_events")]
+data = merge(data, current_life_stress, by = "id_short")
+data$ALES_events_sum = data$sum_events
+data <- subset(data, select = -c(sum_events))
+```
+
+#### Include Income into the dataset.
+```{r, eval=FALSE}
+income = read.csv('/Users/leighgayle/Box Sync/FF_Demographics/Income.csv')
+
+income$yr_income[income$yr_income==-99] <- NA
+income$yr_income[income$yr_income==77] <- NA
+income$yr_income[income$yr_income==88] <- NA
+
+#income[is.na(income$yr_income)] = -99
+#income[is.na(income)] = 77
+#income[is.na(income)] = 88
+
+table(income$yr_income)
+income$id_short = income$id
+
+data = merge(data, income, by = "id_short")
+
+```
+
+
+#### Write Out the New File
+```{r, eval=FALSE}
+write.csv(data, '/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_data_wIndiv_wExternals_021319.csv')
+```
+
+## Start here 
+
+```{r}
+#data = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_data_wIndiv_wExternals_012819.csv')
+#data = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_010819/group_data_wIndiv_wExternals_021319.csv')
+
+#data = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_v5.0_linux_021919/group_data.csv')
+data = read.csv('/Volumes/lsa-csmonk/bbox/FF_Data/Working_Files/Resting/GIMME/output_subgroup_v5.1_linux_022819/group_data_030119.csv')
+```
+
+```{r}
+FindOutliers <- function(data) {
+  lowerq = quantile(data, na.rm = TRUE)[2]
+  upperq = quantile(data, na.rm = TRUE)[4]
+  iqr = upperq - lowerq #Or use IQR(data)
+  # we identify extreme outliers
+  extreme.threshold.upper = (iqr * 2.2) + upperq
+  extreme.threshold.lower = lowerq - (iqr * 2.2)
+  result <- which(data > extreme.threshold.upper | data < extreme.threshold.lower)
+}
+```
+
+```{r}
+Violence_Outliers = FindOutliers(data$ThreatCompc); Violence_Outliers
+Deprivation_Outliers = FindOutliers(data$DepCompc); Deprivation_Outliers
+```
+
+```{r}
+clean.data = data[-c(3, 62, 130, 174 ), ]
+```
+
+```{r}
+t.test(clean.data$ThreatCompc ~ clean.data$sub_membership)
+t.test(clean.data$DepCompc ~ clean.data$sub_membership)
+
+table(clean.data$sub_membership)
+
+summary(lm(SN_Connections ~ ThreatCompc * DepCompc, data = clean.data))
+#summary(lm(SN_Within ~ ThreatCompc * DepCompc, data = clean.data))
+
+summary(lm(DMN_Connections ~ ThreatCompc * DepCompc, data = clean.data))
+#summary(lm(DMN_Within ~ ThreatCompc * DepCompc, data = clean.data))
+
+#summary(lm(Inter.Connections ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(Inter_Connections ~ ThreatCompc * DepCompc, data = clean.data))
+
+summary(lm(SN_Connections ~ ThreatCompc + DepCompc, data = clean.data))
+summary(lm(DMN_Connections ~ ThreatCompc + DepCompc, data = clean.data))
+summary(lm(Inter_Connections ~ ThreatCompc + DepCompc, data = clean.data))
+
+#summary(lm(SN.Connections ~ ThreatCompc * DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_3cat + Mean_Relative_FD, data = clean.data))
+summary(lm(SN_Connections ~ ThreatCompc * DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_3cat + Mean_Relative_FD, data = clean.data))
+#summary(lm(DMN.Connections ~ ThreatCompc * DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_3cat + Mean_Relative_FD, data = clean.data))
+summary(lm(DMN_Connections ~ ThreatCompc * DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_3cat + Mean_Relative_FD, data = clean.data))
+#summary(lm(Inter.Connections ~ ThreatCompc * DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_3cat + Mean_Relative_FD, data = clean.data))
+summary(lm(Inter_Connections ~ ThreatCompc * DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_3cat + Mean_Relative_FD, data = clean.data))
+
+```
+
+Digging into other demographic variables that could potentially be explaining the subgroup differences.
+```{r}
+table = table(clean.data$sub_membership, clean.data$EthnoRace_3cat)
+table
+
+chisq.test(clean.data$sub_membership, clean.data$EthnoRace_3cat)
+
+```
+
+There does not seem to be a difference based on race/ethnicity. 
+
+```{r}
+t.test(clean.data$Anxiety ~ clean.data$sub_membership)
+t.test(clean.data$Depression ~ clean.data$sub_membership)
+t.test(clean.data$Internalizing ~ clean.data$sub_membership)
+```
+
+```{r}
+t.test(clean.data$puberty_score ~ clean.data$sub_membership)
+t.test(clean.data$Age_Years ~ clean.data$sub_membership)
+```
+
+```{r}
+t.test(clean.data$ALES_events_sum ~ clean.data$sub_membership)
+```
+
+```{r}
+
+table(clean.data$Gender_0F_1M, clean.data$sub_membership)
+
+chisq.test(clean.data$Gender_0F_1M, clean.data$sub_membership)
+
+```
+
+```{r}
+
+table(clean.data$yr_income, clean.data$sub_membership)
+chisq.test(clean.data$yr_income, clean.data$sub_membership)
+```
+
+Hmm, so a, not-so-unexpected problem, is that the chi square doesn't have enough cases per cell with this many categories --> I guess I can consolidate cateogories to better get at potential income differences. 
+
+OR, I can try a t-test since this variable is ordinal and has 13 categories.
+
+```{r}
+
+t.test(clean.data$yr_income ~ clean.data$sub_membership)
+
+```
+
+
+Creating a total connections variable to get at the subgroup differences. 
+
+```{r}
+
+# Total Contemporaneous connections -- I don't have any lagged connections included here. 
+#clean.data$Total.Connections = clean.data$SN.Connections + clean.data$DMN.Connections + clean.data$Inter.Connections
+#clean.data$Total_Connections = clean.data$SN_Within + clean.data$DMN_Within + clean.data$InterConns
+
+```
+
+```{r}
+summary(lm(Total_Conns ~ ThreatCompc * DepCompc, data = clean.data))
+
+summary(lm(Total_Conns ~ ThreatCompc + DepCompc, data = clean.data))
+
+summary(lm(Total_Conns ~ ThreatCompc * DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_3cat + Mean_Relative_FD, data = clean.data))
+```
+
+#### Looking at associations with psychopathology.
+
+```{r}
+summary(lm(Anxiety ~ SN_Connections, data = clean.data))
+summary(lm(Anxiety ~ DMN_Connections, data = clean.data))
+summary(lm(Anxiety ~ Inter_Connections, data = clean.data))
+summary(lm(Anxiety ~ Total_Conns, data = clean.data))
+
+summary(lm(Anxiety ~ Total_Conns + ALES_events_sum, data = clean.data))
+
+summary(lm(Depression ~ SN_Connections, data = clean.data))
+summary(lm(Depression ~ DMN_Connections, data = clean.data))
+summary(lm(Depression ~ Inter_Connections, data = clean.data))
+summary(lm(Depression ~ Total_Conns, data = clean.data))
+
+summary(lm(Internalizing ~ SN_Connections, data = clean.data))
+summary(lm(Internalizing ~ DMN_Connections, data = clean.data))
+summary(lm(Internalizing ~ Inter_Connections, data = clean.data))
+summary(lm(Internalizing ~ Total_Conns, data = clean.data))
+
+```
+
+
+#### Looking at associations with our group level connections.
+
+```{r}
+# This section is commented out because these were old variables from the first iteration of the GIMME subgroup analysis where it turned out there was a software bug. 
+
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V2_V7_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V2_V9_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V3_V4_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V4_V11_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V5_V12_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V5_V7_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V6_V7_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V6_V9_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V7_V12_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V7_V14_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V8_V1_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V8_V11_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V9_V4_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V10_V11_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V10_V3_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V11_V7_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V13_V14_beta)
+#cor.test(clean.data$Mean_Relative_FD, clean.data$V13_V6_beta)
+
+```
+
+#### Look at associations with violence exposure and social deprivation
+
+```{r}
+# This section is commented out because these were old variables from the first iteration of the GIMME subgroup analysis where it turned out there was a software bug. 
+
+#summary(lm(V2_V7_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V2_V9_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V3_V4_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V4_V11_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V5_V12_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V5_V7_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V6_V7_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # * Interaction --> V6 pred by V7 is left MTG to left PCC (within the DMN)  
+#summary(lm(V6_V9_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V7_V12_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V7_V14_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V8_V1_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V8_V11_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V9_V4_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V9_V5_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V10_V11_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V10_V3_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V11_V7_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # * Interaction --> V11 pred by V7 is right insula to left PCC (between the SN and DMN and hemispheres)
+#summary(lm(V13_V14_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+#summary(lm(V13_V6_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # * Interaction --> V13 pred by V6 is right MTG to left MTG (within the DMN)
+
+```
+
+```{r}
+# This section is commented out because these were old variables from the first iteration of the GIMME subgroup analysis where it turned out there was a software bug. 
+#
+#summary(lm(Anxiety ~ V2_V7_beta , data = clean.data))
+#summary(lm(Anxiety ~ V2_V9_beta + Mean_Relative_FD, data = clean.data)) # * Increased anxiety = increased beta for between the L&R dACC which is within the SN
+#summary(lm(Anxiety ~ V3_V4_beta, data = clean.data))
+#summary(lm(Anxiety ~ V4_V11_beta, data = clean.data))
+#summary(lm(Anxiety ~ V5_V12_beta, data = clean.data))
+#summary(lm(Anxiety ~ V5_V7_beta, data = clean.data))
+#summary(lm(Anxiety ~ V6_V7_beta, data = clean.data))
+#summary(lm(Anxiety ~ V6_V9_beta, data = clean.data))
+#summary(lm(Anxiety ~ V7_V12_beta, data = clean.data))
+#summary(lm(Anxiety ~ V7_V14_beta, data = clean.data))
+#summary(lm(Anxiety ~ V8_V1_beta, data = clean.data))
+#summary(lm(Anxiety ~ V8_V11_beta, data = clean.data))
+#summary(lm(Anxiety ~ V9_V4_beta, data = clean.data))
+#summary(lm(Anxiety ~ V9_V5_beta, data = clean.data))
+#summary(lm(Anxiety ~ V10_V11_beta, data = clean.data))
+#summary(lm(Anxiety ~ V10_V3_beta, data = clean.data))
+#summary(lm(Anxiety ~ V11_V7_beta, data = clean.data))
+#summary(lm(Anxiety ~ V13_V14_beta, data = clean.data))
+#summary(lm(Anxiety ~ V13_V6_beta, data = clean.data))
+#
+#summary(lm(Depression ~ V2_V7_beta, data = clean.data))
+#summary(lm(Depression ~ V2_V9_beta, data = clean.data)) # *
+#summary(lm(Depression ~ V3_V4_beta, data = clean.data))
+#summary(lm(Depression ~ V4_V11_beta, data = clean.data))
+#summary(lm(Depression ~ V5_V12_beta, data = clean.data))
+#summary(lm(Depression ~ V5_V7_beta, data = clean.data))
+#summary(lm(Depression ~ V6_V7_beta, data = clean.data))
+#summary(lm(Depression ~ V6_V9_beta, data = clean.data))
+#summary(lm(Depression ~ V7_V12_beta, data = clean.data))
+#summary(lm(Depression ~ V7_V14_beta, data = clean.data))
+#summary(lm(Depression ~ V8_V1_beta, data = clean.data))
+#summary(lm(Depression ~ V8_V11_beta, data = clean.data))
+#summary(lm(Depression ~ V9_V4_beta, data = clean.data))
+#summary(lm(Depression ~ V9_V5_beta, data = clean.data))
+#summary(lm(Depression ~ V10_V11_beta, data = clean.data))
+#summary(lm(Depression ~ V10_V3_beta, data = clean.data))
+#summary(lm(Depression ~ V11_V7_beta, data = clean.data))
+#summary(lm(Depression ~ V13_V14_beta, data = clean.data))
+#summary(lm(Depression ~ V13_V6_beta, data = clean.data))
+
+
+```
+
+
+#### Looking at individual beta estimates with the "correct" GIMME software version - 3.1.2019
+
+A quick note -- these pairings are reversed because of the way that I saved the variables, but the group level associations that were associated with the interaction in the first iteration are the same. 
+```{r}
+
+summary(lm(V1_pred_V8_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V3_pred_V10_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V4_pred_V3_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V4_pred_V9_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V5_pred_V9_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V6_pred_V13_beta ~ ThreatCompc * DepCompc, data = clean.data)) # interaction significant
+summary(lm(V7_pred_V11_beta ~ ThreatCompc * DepCompc, data = clean.data)) # interaction significant
+summary(lm(V7_pred_V2_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V7_pred_V5_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V7_pred_V6_beta ~ ThreatCompc * DepCompc, data = clean.data)) # interaction significant
+summary(lm(V9_pred_V2_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V9_pred_V6_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V11_pred_V10_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V11_pred_V4_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V11_pred_V8_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V12_pred_V5_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V12_pred_V7_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V14_pred_V13_beta ~ ThreatCompc * DepCompc, data = clean.data))
+summary(lm(V14_pred_V7_beta ~ ThreatCompc * DepCompc, data = clean.data))
+
+```
+
+Now, let's make sure that none of those associations go away when controlling for FD.
+
+```{r}
+
+summary(lm(V6_pred_V13_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data)) # interaction still significant
+summary(lm(V7_pred_V11_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data)) # interaction no longer significant with all covariates
+summary(lm(V7_pred_V6_beta ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data)) # interaction still significant
+
+```
+
+
+
+```{r}
+plot(clean.data$SN_Connections, clean.data$ThreatCompc)
+
+clean.data$sub_membership = as.factor(clean.data$sub_membership)
+
+legend_title = "Subgroup"
+
+ggplot(clean.data, aes(x=ThreatCompc, y=SN_Connections, color=sub_membership))  + geom_point() + geom_abline(intercept = 16.43, slope = -0.8953) + scale_color_manual(legend_title, values=c('darkslategrey','darkslategray3')) + theme_classic() + xlab("Violence Exposure") + ylab("Salience Network Connections") 
+
+ggplot(clean.data, aes(x=ThreatCompc, y=Total_Conns, color=sub_membership)) + geom_point() + geom_abline(intercept = 43.21, slope = -2.73) + scale_color_manual(legend_title, values=c('darkslategrey','darkslategray3')) + theme_classic() + xlab("Violence Exposure") + ylab("Total Connections")
+```
+
+#### Trying to look at "hubbness"
+
+```{r}
+summary(lm(V1_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V2_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V3_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V4_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with violence exposure
+summary(lm(V5_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with violence exposure
+summary(lm(V6_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V7_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V8_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with the interaction
+summary(lm(V9_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with violence exposure
+summary(lm(V10_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V11_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with violence exposure
+summary(lm(V12_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V13_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V14_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+
+summary(lm(V1_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data)) 
+summary(lm(V2_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data))
+summary(lm(V3_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data))
+summary(lm(V4_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data)) # significant association with violence exposure
+summary(lm(V5_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data)) # strong significant association with violence exposure
+summary(lm(V6_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data))
+summary(lm(V7_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data))
+summary(lm(V8_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data)) # significant association with the interaction
+summary(lm(V9_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data)) # significant association with violence exposure
+summary(lm(V10_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data))
+summary(lm(V11_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data)) # strong significant association with violence exposure
+summary(lm(V12_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data))
+summary(lm(V13_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data))
+summary(lm(V14_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_3cat + puberty_score, data = clean.data))
+
+```
+
+```{r}
+
+summary(lm(V1_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with threat exposure
+summary(lm(V2_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V3_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V4_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with threat exposure
+summary(lm(V5_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) 
+summary(lm(V6_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with deprviation exposure
+summary(lm(V7_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V8_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) 
+summary(lm(V9_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) 
+summary(lm(V10_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V11_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # strong association with threat exposure, slight association with dep exposure
+summary(lm(V12_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V13_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V14_IV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+
+summary(lm(V1_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V2_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V3_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V4_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) 
+summary(lm(V5_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # strong association with threat exposure
+summary(lm(V6_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V7_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V8_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) 
+summary(lm(V9_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with threat exposure
+summary(lm(V10_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V11_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V12_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V13_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V14_DV ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = clean.data))
+
+```
+
+
