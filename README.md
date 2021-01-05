@@ -1,15 +1,7 @@
-## Welcome to GitHub Pages
+# Statistical Analyses for Goetschius et al., 2020, JAMA Network Oen
 
-You can use the [editor on GitHub](https://github.com/lgoetschius/VE_SD_GIMME_Analysis/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
+In this repository find the code for the statistical analyses used in Goetschius et al., 2020, published in JAMA Network Open. 
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+[Link to Published Paper](https://jamanetwork.com/journals/jamanetworkopen/fullarticle/2770942)
 
-
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/lgoetschius/VE_SD_GIMME_Analysis/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
+Email lcgayle@umich.edu with questions
