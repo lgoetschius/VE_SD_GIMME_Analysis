@@ -1,4 +1,4 @@
-# Statistical Analyses for Goetschius et al., 2020, JAMA Network Oen
+# Statistical Analyses for Goetschius et al., 2020, JAMA Network Open
 
 In this repository find the code for the statistical analyses used in Goetschius et al., 2020, published in JAMA Network Open. 
 
