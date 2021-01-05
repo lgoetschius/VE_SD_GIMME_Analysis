@@ -1,0 +1,1056 @@
+---
+title: "SAND15 Violence Exposure/Social Deprivation rsFC Analysis"
+author: "Leigh Gayle Goetschius"
+date: "Date of Last Edit: `r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: TRUE 
+    toc_float: TRUE 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(naniar);
+library(tidyr);
+library(tidyverse);
+library(ggplot2);
+library(data.table);
+library(kableExtra);
+library(apaTables);
+library(psych);
+library(interactions); # the new jtools package
+library(lm.beta);
+library(lsr);
+library(gmodels);
+library(ggpubr);
+library(ppcor);
+
+
+```
+
+# Load Data
+```{r}
+data = read_csv('/Users/leighgoetschius/Box Sync/VE_SD_GIMME_Analysis/Manuscript/Data & Analysis/VE_SD_GIMME_Data_030119_Final.csv')
+```
+
+
+Note: Throughout this analysis file, you will see analyses done with "data", "clean data", and "new data". The analyses done with data are including all subjects (N=175), clean.data excludes participants who were extreme outliers on the violence and social deprivation predictors (N=171), and newdata excludes participants who had values in their psi matrices that exceeded 1 representing a potentially overfit model (N=145). Generally, all analyses replicated in all three configurations with results being strongest in the "newdata" dataset, potentially because individuals with psi matrix problems were the noisier participants. 
+
+Second Note: there were 19 contemporaneous group-level connections and 16 lagged group-level connections (2 lagged connections in addition to the 14 auto-regressive paths). I didn't do anything with the lagged group-level connections, except for account for their variance, and the beta estimates of the contemporaneous group-level connections weren't related to my environmental variables. 
+
+
+# Outlier Detection
+
+```{r}
+FindOutliers <- function(data) {
+  lowerq = quantile(data, na.rm = TRUE)[2]
+  upperq = quantile(data, na.rm = TRUE)[4]
+  iqr = upperq - lowerq #Or use IQR(data)
+  # we identify extreme outliers
+  extreme.threshold.upper = (iqr * 2.2) + upperq
+  extreme.threshold.lower = lowerq - (iqr * 2.2)
+  result <- which(data > extreme.threshold.upper | data < extreme.threshold.lower)
+}
+```
+
+```{r}
+Violence_Outliers = FindOutliers(data$ThreatCompc); Violence_Outliers
+Deprivation_Outliers = FindOutliers(data$DepCompc); Deprivation_Outliers
+```
+
+```{r}
+clean.data = data[-c(3, 62, 130, 174 ), ]
+```
+
+```{r}
+newdata = data[ which(data$Psi_Problem=='0'), ]
+```
+
+In this document, clean.data is the dataframe where outliers have been excluded. Newdata is the dataframe where subjects that had weird psi values were excluded. Based on my analyses it doesn't seem like there are differences in the overall message when using the different dataframes, so I am planning to use the full data to retain the most subjects. All analyses have been included in this document for reference. 
+
+
+Function from Field, Andy; Miles, Jeremy; Field, Zoe. Discovering Statistics Using R (p. 643). SAGE Publications that shows different approximations of R^2s. I'm not sure that we need this, but it's good to check. 
+```{r}
+logisticPseuoR2s <- function(LogModel) {
+  dev <- LogModel$deviance
+  nullDev <- LogModel$null.deviance
+  ModelN <- length(LogModel$fitted.values)
+  R.l <- 1 - dev/nullDev
+  R.cs <- 1 - exp( -(nullDev - dev)/ModelN)
+  R.n <- R.cs / (1- ( exp (-(nullDev / ModelN))))
+  cat("Pseudo R^2 for logistic regression \n")
+  cat("Hosmer and Lemeshow R^2 ", round(R.l, 3), "\n")
+  cat("Cox and Snell R^2 ", round(R.cs, 3), "\n")
+  cat("Nagelkerge R^2 ", round(R.n, 3), "\n")
+}
+```
+
+# Analysis of Subgroup Differences
+
+## T-Tests
+```{r}
+
+data$sub_membership = (data$sub_membership-3)*-1
+
+# Subgroup differences 
+
+t.test(data$ThreatCompc ~ data$sub_membership)
+t.test(clean.data$ThreatCompc ~ clean.data$sub_membership)
+t.test(newdata$ThreatCompc ~ newdata$sub_membership)
+
+cohensD(ThreatCompc ~ sub_membership, data=data, method="unequal") # put unequal here because we used a Welch t-test
+
+t.test(data$DepCompc ~ data$sub_membership)
+t.test(clean.data$DepCompc ~ clean.data$sub_membership)
+t.test(newdata$DepCompc ~ newdata$sub_membership)
+
+cohensD(DepCompc ~ sub_membership, data=data, method="unequal")
+
+table(data$sub_membership)
+table(clean.data$sub_membership)
+table(newdata$sub_membership)
+
+describe.by(data$ThreatCompc, data$sub_membership)
+describe.by(clean.data$ThreatCompc, clean.data$sub_membership)
+describe.by(newdata$ThreatCompc, newdata$sub_membership)
+
+
+```
+## Logistic Regression
+```{r}
+
+#data$sub_membership = data$sub_membership - 1
+data$sub_membership[data$sub_membership==2] <- 0 # This makes it so that the effects are in the same direction (e.g. the higher violence group is a 1 and the lower violence group is the reference)
+clean.data$sub_membership[clean.data$sub_membership==2] <- 0
+newdata$sub_membership[newdata$sub_membership==2] <- 0
+
+no_violence = glm(sub_membership ~ DepCompc + Mean_Relative_FD, data = data, family = "binomial")
+
+base_model = glm(sub_membership ~ ThreatCompc + DepCompc, data = data, family = "binomial")
+summary(base_model)
+exp(base_model$coefficients)
+exp(confint(base_model))
+
+motion_model = glm(sub_membership ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data, family = "binomial")
+summary(motion_model)
+exp(motion_model$coefficients)
+exp(confint(motion_model))
+lm.beta(motion_model)
+
+# This test looks at if the model fits better when you add violence exposure on top of social deprivation and motion.
+anova(no_violence,motion_model,test="Chisq") 
+
+# It does, which is good 
+
+
+motion_stress_model = glm(sub_membership ~ ThreatCompc + DepCompc + Mean_Relative_FD + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + ALES_events_sum  + cm1edu + m1b2, data = data, family = "binomial")
+summary(motion_stress_model)
+exp(motion_stress_model$coefficients)
+exp(confint(motion_stress_model))
+
+```
+
+
+A note about the above analyses -- the exp commands are odds ratios where higher values are related to higher odds of being in the more heterogeneous group. 
+
+"We can interpret the odds ratio in terms of the change in odds. If the value is greater than 1 then it indicates that as the predictor increases, the odds of the outcome occurring increase. Conversely, a value less than 1 indicates that as the predictor increases, the odds of the outcome occurring decrease."
+
+Field, Andy; Miles, Jeremy; Field, Zoe. Discovering Statistics Using R (p. 643). SAGE Publications. Kindle Edition. 
+
+A second note is that in the confidence intervals, you're not looking for them to not cross 0, but rather to not cross 1. 
+
+"The important thing about this confidence interval is that it doesn’t cross 1 (the values at each end of the interval are greater than 1). This is important because values greater than 1 mean that as the predictor variable increases, so do the odds of (in this case) being cured. Values less than 1 mean the opposite: as the predictor variable increases, the odds of being cured decrease."
+
+Field, Andy; Miles, Jeremy; Field, Zoe. Discovering Statistics Using R (p. 644). SAGE Publications. Kindle Edition. 
+
+# Analysis of associations with total connections. 
+
+```{r}
+
+total_mod_nomovement = lm(Total_Conns ~ ThreatCompc + DepCompc, data = data)
+summary(total_mod_nomovement)
+lm.beta(total_mod_nomovement)
+
+# Total connections controlling for motion
+totalcons_motionmodel = lm(Total_Conns ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)
+summary(totalcons_motionmodel)
+lm.beta(totalcons_motionmodel)
+
+
+# Total connections excluding outliers and Psi problem subjects
+summary(lm(Total_Conns ~ ThreatCompc + DepCompc, data = clean.data))
+summary(lm(Total_Conns ~ ThreatCompc + DepCompc, data = newdata))
+
+
+# Including covariates
+Total_mod_covariates = lm(Total_Conns ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = data)
+summary(Total_mod_covariates)
+
+# Including covariates in the data excluding outliers and Psi problem subjects
+summary(lm(Total_Conns ~ ThreatCompc * DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = clean.data))
+summary(lm(Total_Conns ~ ThreatCompc * DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = newdata))
+
+
+```
+# Breaking Total Connections down into the Networks
+
+```{r}
+
+# No covariates
+
+summary(lm(SN_Connections ~ ThreatCompc + DepCompc, data = data))
+summary(lm(SN_Connections ~ ThreatCompc + DepCompc, data = clean.data))
+summary(lm(SN_Connections ~ ThreatCompc + DepCompc, data = newdata))
+
+summary(lm(DMN_Connections ~ ThreatCompc + DepCompc, data = data))
+summary(lm(DMN_Connections ~ ThreatCompc + DepCompc, data = clean.data))
+summary(lm(DMN_Connections ~ ThreatCompc + DepCompc, data = newdata))
+
+summary(lm(Inter_Connections ~ ThreatCompc + DepCompc, data = data))
+summary(lm(Inter_Connections ~ ThreatCompc + DepCompc, data = clean.data))
+summary(lm(Inter_Connections ~ ThreatCompc + DepCompc, data = newdata))
+
+# Just controlling for motion
+
+summary(lm(SN_Connections ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data))
+summary(lm(SN_Connections ~ ThreatCompc + DepCompc +  Mean_Relative_FD, data = clean.data))
+summary(lm(SN_Connections ~ ThreatCompc + DepCompc +  Mean_Relative_FD, data = newdata))
+
+SN_mod_motion = lm(SN_Connections ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = data)
+summary(SN_mod_motion)
+lm.beta(SN_mod_motion)
+
+summary(lm(DMN_Connections ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data))
+summary(lm(DMN_Connections ~ ThreatCompc + DepCompc +  Mean_Relative_FD, data = clean.data))
+summary(lm(DMN_Connections ~ ThreatCompc + DepCompc +  Mean_Relative_FD, data = newdata))
+
+DMN_mod_motion = lm(DMN_Connections ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)
+summary(DMN_mod_motion)
+lm.beta(DMN_mod_motion)
+
+summary(lm(Inter_Connections ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data))
+summary(lm(Inter_Connections ~ ThreatCompc + DepCompc +  Mean_Relative_FD, data = clean.data))
+summary(lm(Inter_Connections ~ ThreatCompc + DepCompc +  Mean_Relative_FD, data = newdata))
+
+Inter_mod_motion = lm(Inter_Connections ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)
+summary(Inter_mod_motion)
+lm.beta(Inter_mod_motion)
+
+# With Demographic Covariates
+
+SN_mod_covariates = lm(SN_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = data)
+summary(SN_mod_covariates)
+
+summary(lm(SN_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = data))
+summary(lm(SN_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = clean.data))
+summary(lm(SN_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = newdata))
+
+DMN_mod_covariates = lm(DMN_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = data)
+summary(DMN_mod_covariates)
+
+summary(lm(DMN_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = data))
+summary(lm(DMN_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = clean.data))
+summary(lm(DMN_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = newdata))
+
+Inter_mod_covariates = lm(Inter_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = data)
+summary(Inter_mod_covariates)
+
+summary(lm(Inter_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = data))
+summary(lm(Inter_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = clean.data))
+summary(lm(Inter_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu, data = newdata))
+```
+
+
+
+## Figure representing association between total connections and violence exposure.
+
+```{r}
+#library(extrafont)
+#font_import()
+#loadfonts(device="win")
+
+clean.data$sub_membership = as.factor(clean.data$sub_membership)
+newdata$sub_membership = as.factor(newdata$sub_membership)
+data$sub_membership = as.factor(data$sub_membership)
+
+legend_title = "Subgroup"
+
+ggplot(data, aes(x=ThreatCompc, y=SN_Connections, color=sub_membership))  + geom_point() + geom_abline(intercept = 16.43, slope = -0.8953) + scale_color_manual(legend_title, values=c('darkslategrey','darkslategray3')) + theme_classic() + xlab("Violence Exposure") + ylab("Salience Network Connections") + theme(text = element_text(family='serif'), axis.title = element_text(face = "bold", size = 16), axis.text = element_text(size=12), legend.title = element_text(face="bold", size = 16), legend.text = element_text(size = 12))
+
+ggplot(clean.data, aes(x=ThreatCompc, y=SN_Connections, color=sub_membership))  + geom_point() + geom_abline(intercept = 16.43, slope = -0.8953) + scale_color_manual(legend_title, values=c('darkslategrey','darkslategray3')) + theme_classic() + xlab("Violence Exposure") + ylab("Salience Network Connections") + theme(text = element_text(family='serif'), axis.title = element_text(face = "bold", size = 16), axis.text = element_text(size=12), legend.title = element_text(face="bold", size = 16), legend.text = element_text(size = 12))
+
+ggplot(newdata, aes(x=ThreatCompc, y=SN_Connections, color=sub_membership))  + geom_point() + geom_abline(intercept = 16.43, slope = -0.8953) + scale_color_manual(legend_title, values=c('darkslategrey','darkslategray3')) + theme_classic() + xlab("Violence Exposure") + ylab("Salience Network Connections") + theme(text = element_text(family='serif'), axis.title = element_text(face = "bold", size = 16), axis.text = element_text(size=12), legend.title = element_text(face="bold", size = 16), legend.text = element_text(size = 12)) 
+
+
+df = data
+summary(totalcons_motionmodel)
+
+predicted_df = data.frame(data_pred = predict(totalcons_motionmodel, data), VE = data$ThreatCompc, sub_membership = data$sub_membership)
+
+lbl = paste("R^2 == ", signif(summary(totalcons_motionmodel)$adj.r.squared, 3)) #annotate(geom = "text", x=2, y=60, label= lbl, parse=TRUE, family="serif", fontface="bold")
+
+
+ggplot(data, aes(x=ThreatCompc, y=Total_Conns)) + geom_point()  + scale_color_manual(legend_title, values=c('black','gray')) + theme_classic() + xlab("Violence Exposure") + ylab("Total Connections") + theme(text = element_text(family='serif'), axis.title = element_text(face = "bold", size = 16), axis.text = element_text(size=12), legend.title = element_text(face="bold", size = 16), legend.text = element_text(size = 12)) + geom_smooth(data=predicted_df, aes(x=VE, y=data_pred), method = 'lm', color="black", se=FALSE) + stat_regline_equation(aes(label =  paste(..adj.rr.label..)), formula = data$Total_Conns~data$ThreatCompc + data$DepCompc + data$Mean_Relative_FD, show.legend = FALSE, label.x=1.7, label.y=30)
+
+ggplot(data, aes(x=ThreatCompc, y=Total_Conns)) + geom_point()  + scale_color_manual(legend_title, values=c('black','gray')) + theme_classic() + xlab("Violence Exposure") + ylab("Total Connections") + theme(axis.title = element_text(face = "bold", size = 16), axis.text = element_text(size=12), legend.title = element_text(face="bold", size = 16), legend.text = element_text(size = 12)) + geom_smooth(data=predicted_df, aes(x=VE, y=data_pred), method = 'lm', color="black", se=FALSE) + stat_regline_equation(aes(label =  paste(..adj.rr.label..)), formula = data$Total_Conns~data$ThreatCompc + data$DepCompc + data$Mean_Relative_FD, show.legend = FALSE, label.x=1.7, label.y=30)
+
+
+ggplot(clean.data, aes(x=ThreatCompc, y=Total_Conns, color=sub_membership)) + geom_point() + geom_abline(intercept = 43.21, slope = -2.73) + scale_color_manual(legend_title, values=c('darkslategrey','darkslategray3')) + theme_classic() + xlab("Violence Exposure") + ylab("Total Connections") + theme(text = element_text(family='serif'), axis.title = element_text(face = "bold", size = 16), axis.text = element_text(size=12), legend.title = element_text(face="bold", size = 16), legend.text = element_text(size = 12))
+
+ggplot(newdata, aes(x=ThreatCompc, y=Total_Conns, color=sub_membership)) + geom_point() + geom_abline(intercept = 43.21, slope = -2.73) + scale_color_manual(legend_title, values=c('darkslategrey','darkslategray3')) + theme_classic() + xlab("Violence Exposure") + ylab("Total Connections") + theme(text = element_text(family='serif'), axis.title = element_text(face = "bold", size = 16), axis.text = element_text(size=12), legend.title = element_text(face="bold", size = 16), legend.text = element_text(size = 12)) 
+
+```
+
+# Describe Total Number of Individual Connections
+
+```{r}
+# Total
+data %>% 
+  summarize(mean_indiv_conns = mean(`Indiv Conns`, na.rm=TRUE), sd_indiv_conns = sd(`Indiv Conns`, na.rm=TRUE))
+
+# By Subgroup
+data %>% 
+  group_by(sub_membership) %>% 
+  summarize(mean_indiv_conns = mean(`Indiv Conns`, na.rm=TRUE), sd_indiv_conns = sd(`Indiv Conns`, na.rm=TRUE))
+
+
+```
+
+
+# Looking at Node Degree
+
+Talking with A.B. we are using only the total number of connections involving the different ROIs (e.g. not the incoming vs. outgoing) because we didn't use GIMME multiple solutions, so the incoming vs. outgoing could differ theoretically. 
+
+
+```{r}
+# Controlling for motion. 
+
+summary(lm(V1_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data))
+summary(lm(V2_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data))
+summary(lm(V3_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data))
+summary(lm(V4_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)) # significant association with violence exposure
+summary(lm(V5_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)) # significant association with violence exposure
+summary(lm(V6_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data))
+summary(lm(V7_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data))
+summary(lm(V8_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)) # significant association with the interaction
+summary(lm(V9_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)) # significant association with violence exposure
+summary(lm(V10_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data))
+summary(lm(V11_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)) # significant association with violence exposure
+summary(lm(V12_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data))
+summary(lm(V13_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data))
+summary(lm(V14_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data))
+
+# Left IPL
+V5_mod_motion = lm(V5_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)
+summary(V5_mod_motion)
+
+# Right Anterior Insula
+V11_mod_motion = lm(V11_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)
+summary(V11_mod_motion)
+
+```
+
+## Adding covariates to the general node degree analysis.
+
+A Bonferroni correction for this would be 0.05/14 = 0.004
+
+```{r}
+# Left amygdala
+summary(lm(V1_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data)) 
+# Left dACC
+summary(lm(V2_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data))
+# Left dlPFC
+summary(lm(V3_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data))
+# Left insula
+summary(lm(V4_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data)) 
+# Left IPL
+summary(lm(V5_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data)) # association with threat
+#Left MTG
+summary(lm(V6_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data))
+# Left PCC
+summary(lm(V7_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data)) 
+# Right amygdala
+summary(lm(V8_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data)) 
+# Right dACC
+summary(lm(V9_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data)) 
+# Right dlPFC
+summary(lm(V10_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data)) 
+# Right insula
+summary(lm(V11_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data)) # association with threat
+# Right IPL
+summary(lm(V12_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data))
+# Right MTG
+summary(lm(V13_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data))
+# Right PCC
+summary(lm(V14_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD + ALES_events_sum + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + m1b2 + cm1edu, data = data))
+```
+
+```{r}
+# Bonferroni p-values (14 tests)
+
+NodeDegreeAnalysis_LIPL = summary(lm(V5_Total ~ ThreatCompc * DepCompc, data = data)) # significant association with violence exposure - left IPL
+BonfCor_P_LIPL = NodeDegreeAnalysis_LIPL$coefficients[,4]*14
+BonfCor_P_LIPL
+
+NodeDegreeAnalysis_RIns = summary(lm(V11_Total ~ ThreatCompc * DepCompc, data = data)) # significant association with violence exposure - left IPL
+BonfCor_P_RIns = NodeDegreeAnalysis_RIns$coefficients[,4]*14
+BonfCor_P_RIns
+
+```
+
+## Node degree when excluding outliers. 
+
+```{r}
+summary(lm(V1_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V2_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V3_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V4_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with violence exposure
+summary(lm(V5_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with violence exposure
+summary(lm(V6_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V7_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V8_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with the interaction
+summary(lm(V9_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with violence exposure
+summary(lm(V10_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V11_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data)) # significant association with violence exposure
+summary(lm(V12_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V13_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data))
+summary(lm(V14_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = clean.data))
+
+
+```
+
+
+## Node degree without the participants with off psi matrices.
+
+```{r}
+summary(lm(V1_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata))
+summary(lm(V2_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata))
+summary(lm(V3_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata)) # slight assoc with threat
+summary(lm(V4_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata)) # stronger assoc with threat
+summary(lm(V5_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata)) # very strong assoc with threat
+summary(lm(V6_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata)) # slight assoc with threat
+summary(lm(V7_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata)) # strong assoc with threat
+summary(lm(V8_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata)) # strong assoc with interaction
+summary(lm(V9_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata)) 
+summary(lm(V10_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata)) # assoc with threat
+summary(lm(V11_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata)) # assoc with threat
+summary(lm(V12_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata)) # assoc with threat
+summary(lm(V13_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata))
+summary(lm(V14_Total ~ ThreatCompc * DepCompc + Mean_Relative_FD, data = newdata))
+
+```
+
+### Interesting Check
+I'm interested in seeing if people with a problem with the psi matrices were more likely to be moving more. 
+
+```{r}
+
+t.test(clean.data$Mean_Relative_FD~clean.data$Psi_Problem)
+
+```
+
+Based on this result, it does seem like there's an increase in mean framewise displacement in the group with psi matrix problems, but the mean for that group is not crazy and it's for the FD before the motion correction.
+
+
+Whew -- I did this other check just to be sure, but it doesn't look like one group or another is having more psi problems, which is positive. 
+```{r}
+chisq.test(clean.data$Psi_Problem, clean.data$sub_membership)
+```
+
+Group 1 (the more heterogeneous one) was also more likely to have higher FD motion values before motion correction, but we do control for motion in the models predicting connections. 
+
+
+# Tables for Paper
+
+## Regression Table for Number of Connections
+
+```{r, eval=FALSE}
+Total_Conns_Base = lm(Total_Conns ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)
+SN_Conns_Base = lm(SN_Connections ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)
+Within_Conns_Base = lm(Inter_Connections ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)
+DMN_Conns_Base = lm(DMN_Connections ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)
+
+apa.reg.table(Total_Conns_Base, filename = "NumOfTotalConnections_Base_Table.doc", table.number= 1)
+apa.reg.table(SN_Conns_Base, filename = "NumOfSNConnections_Base_Table.doc", table.number = 2)
+apa.reg.table(Within_Conns_Base, filename = "NumofInterConnections_Base_Table.doc", table.number = 3)
+apa.reg.table(DMN_Conns_Base, filename = "NumofDMNConnections_Base_Table.doc", table.number = 4)
+
+
+Total_cons = lm(Total_Conns ~ ThreatCompc + DepCompc + Mean_Relative_FD + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + ALES_events_sum  + cm1edu + m1b2, data = data)
+block1 = lm(SN_Connections ~ ThreatCompc + DepCompc + Mean_Relative_FD + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + ALES_events_sum  + cm1edu + m1b2, data = data)
+block3 = lm(Inter_Connections ~ ThreatCompc + DepCompc  + Mean_Relative_FD + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + ALES_events_sum  + cm1edu + m1b2, data = data)
+DMN_cons = lm(DMN_Connections ~ ThreatCompc + DepCompc + Mean_Relative_FD + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + ALES_events_sum  + cm1edu + m1b2, data = data)
+
+apa.reg.table(Total_cons, filename = "NumOfTotalConnections_Table.doc", table.number= 1)
+apa.reg.table(block1, filename = "NumOfSNConnections_Table.doc", table.number = 2)
+apa.reg.table(block3, filename = "NumofInterConnections_Table.doc", table.number = 3)
+apa.reg.table(DMN_cons, filename = "NumofDMNConnections_Table.doc", table.number = 4)
+```
+
+## Table with Total Number of Connection Regressions by Node
+
+```{r, eval = FALSE}
+
+V1_Total_Tab = lm(V1_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V1_Total_Tab, filename = "V1_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V2_Total_Tab = lm(V2_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V2_Total_Tab, filename = "V2_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V3_Total_Tab = lm(V3_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V3_Total_Tab, filename = "V3_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V4_Total_Tab = lm(V4_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V4_Total_Tab, filename = "V4_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V5_Total_Tab = lm(V5_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V5_Total_Tab, filename = "V5_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V6_Total_Tab = lm(V6_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V6_Total_Tab, filename = "V6_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V7_Total_Tab = lm(V7_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V7_Total_Tab, filename = "V7_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V8_Total_Tab = lm(V8_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V8_Total_Tab, filename = "V8_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V9_Total_Tab = lm(V9_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V9_Total_Tab, filename = "V9_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V10_Total_Tab = lm(V10_Total ~ ThreatCompc + DepCompc + Mean_Relative_FD, data = data)
+apa.reg.table(V10_Total_Tab, filename = "V10_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V11_Total_Tab = lm(V11_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V11_Total_Tab, filename = "V11_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V12_Total_Tab = lm(V12_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V12_Total_Tab, filename = "V12_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V13_Total_Tab = lm(V13_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V13_Total_Tab, filename = "V13_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+V14_Total_Tab = lm(V14_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD, data = data)
+apa.reg.table(V14_Total_Tab, filename = "V14_Total_Table_wMotion_NoInt.doc", table.number = 5)
+
+
+```
+
+
+## Supplemental Table with the Total Number of Connection Regressions by Node with Covariates
+
+```{r, eval=FALSE}
+
+
+V5_Total = lm(V5_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + cm1edu + m1b2, data = data)
+apa.reg.table(V5_Total, filename = "V5_Total_Cov_Table.doc", table.number = 5)
+
+
+
+V11_Total = lm(V11_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + cm1edu + m1b2, data = data)
+apa.reg.table(V11_Total, filename = "V11_Total_Cov_Table.doc", table.number = 5)
+
+
+```
+
+
+# Descriptives Statistics
+```{r}
+
+data %>% 
+  summarize(mean_age = mean(Age_Years, na.rm=TRUE), sd_age = sd(Age_Years, na.rm = TRUE), min_age = min(Age_Years), max_age = max(Age_Years))
+
+data %>% 
+  summarize(mean_pub = mean(puberty_score, na.rm=TRUE), sd_pub = sd(puberty_score, na.rm = TRUE), min_pub = min(puberty_score), max_pub = max(puberty_score))
+
+data %>% 
+  group_by(Gender_0F_1M) %>% 
+  summarize(n())
+
+data %>% 
+  group_by(EthnoRace_3cat) %>% 
+  summarize(n())
+
+data %>% 
+  group_by(yr_income) %>% 
+  summarize(n())
+
+```
+
+## Compare descriptives with descriptives from full sample
+```{r}
+Demos = read.csv('/Users/leighgayle/Box Sync/FF_Demographics/FullSample_Race_Gender_Age_Puberty_012319.csv')
+Income = read.csv('/Users/leighgayle/Box Sync/FF_Demographics/Income.csv')
+
+t.test(data$Age_Years, Demos$Age_Years)
+t.test(data$puberty_score, Demos$puberty_score)
+
+table(Income$yr_income)
+
+
+```
+
+
+# Miscellaneous
+
+## Semi-partial Correlations
+```{r}
+
+V11.frame = data.frame(data$ThreatCompc, data$DepCompc, data$Mean_Relative_FD, data$V11_Total)
+spcor(V11.frame)
+
+V5.frame = data.frame(data$ThreatCompc, data$DepCompc, data$Mean_Relative_FD, data$V5_Total)
+spcor(V5.frame)
+
+SN.frame = data.frame(data$ThreatCompc, data$DepCompc, data$Mean_Relative_FD, data$SN_Connections)
+spcor(SN.frame)
+
+Total.frame = data.frame(data$ThreatCompc, data$DepCompc, data$Mean_Relative_FD, data$Total_Conns)
+spcor(Total.frame)
+
+Inter.frame = data.frame(data$ThreatCompc, data$DepCompc, data$Mean_Relative_FD, data$Inter_Connections)
+spcor(Inter.frame)
+
+```
+## Get Primary Caregiver Relationship
+```{r}
+pc_rel = read_csv('/Users/leighgayle/Box Sync/FF_Demographics/PC_Relationship_Age15.csv')
+
+data = data %>% left_join(pc_rel)
+
+table(data$cp6pcgrel)
+```
+
+# Additional Analyses for JAMA Network Open Revision
+
+How many teens were 15, 16, and 17?
+```{r}
+
+data %>% 
+  mutate(Age_SingleYear = round(Age_Years, 0)) %>% 
+  group_by(Age_SingleYear) %>% 
+  summarize(n=n())
+
+
+```
+
+```{r}
+data %>% 
+  summarize(mean_VE = mean(ThreatCompc), sd_VE=sd(ThreatCompc), mean_Dep  = mean(DepCompc), sd_Dep = sd(DepCompc))
+```
+
+```{r}
+cor.test(data$yr_income, data$cm1edu)
+cor.test(data$yr_income, data$ThreatCompc)
+
+```
+
+Parental Psychopathology (most frequently Maternal)
+```{r}
+library(foreign)
+ASR = read.spss('/Users/leighgoetschius/Box Sync/FF_Demographics/ASR.Parent.sav', to.data.frame = TRUE, use.value.labels = FALSE)
+
+```
+
+Making sure to mark missing value as NA
+```{r}
+ASR = ASR %>% 
+  mutate_if(is.numeric, list(~na_if(., 88)))
+
+```
+
+
+Making the INT and EXT Scores
+
+A problem - the way this data was cleaned, there are some questions (specifically 56 if not others) where there are multiple parts, so the numbers aren't quite corresponding to the question number. If that is the case, there will be  () after with the number that corresponds to the correct column name in the dataframe. 
+
+A link to this information -- /Volumes/leighgoetschius/csmonk/csmonk-lab/Data/Fragile_Families/Data Cleaning Protocol/ASR/Cleaned Data/ASR.Parent.Syntax.rmd
+
+INT = 
+scales: I, II, III
+items: 12 13 14 22 31 33 34 35 45 47 50 52 71(14_80) 91(17_100) 103(19_112) 107(20_116) 112(21_121) 113(21_122) 25 30 42 48 60 (12_69) 65(13_74) 67(13_76) 69(13_78) 111(20_120) 51 54 56a(10_57) 56b(10_58) 56c(10_59) 56d(10_60) 56e(11_61) 56f(11_62) 56g(11_63) 56h(11_64) 56i(11_65) 100(19_109)
+```{r}
+# double checked for correctness
+ASR = ASR %>% 
+  mutate(INT = asr2_12 + asr3_13 + asr3_14 + asr4_22 + asr6_31 + asr6_33 + asr6_34 + asr6_35 + asr8_45 + asr8_47 + asr9_50 + asr9_52 + asr14_80 + asr17_100 + asr19_112 + asr20_116 + asr21_121 + asr21_122 + asr5_25 + asr5_30 + asr7_42 + asr8_48 + asr12_69 + asr13_74 + asr13_76 + asr13_78 + asr20_120 + asr9_51 + asr9_54 + asr10_57 + asr10_58 + asr10_59 + asr10_60 + asr11_61 + asr11_62 + asr11_63 + asr11_64 + asr11_65 + asr19_109)
+
+```
+
+EXT = 
+scales: VI, VII, VIII
+items: 3 5 16 28 37 55 57(11_66) 68(13_77) 81(15_90) 86(16_95) 87(16_96) 95(18_104) 97(18_106) 116(21_125) 118(22_127) 6 20 23 26 39 41 43 76(15_85) 82(16_91) 90(17_99) 92(17_101) 114(21_123) 117(21_126) 122(22_131) 7 19 74(14_83) 93(17_102) 94(18_103) 104(19_113)
+
+```{r}
+# double checked for correctness
+ASR = ASR %>% 
+  mutate(EXT = asr1_3 + asr1_5 + asr3_16 + asr5_28 + asr7_37 + asr10_55 + asr11_66 + asr13_77 + asr15_90 + asr16_95 + asr16_96 + asr18_104 + asr18_106 + asr21_125 + asr22_127 + asr1_6 + asr4_20 + asr4_23 + asr5_26 + asr7_39 + asr7_41 + asr8_43 + asr15_85 + asr16_91 + asr17_99 + asr17_101 + asr21_123 + asr21_126 + asr22_131 + asr2_7 + asr4_19 + asr14_83 + asr17_102 + asr18_103 + asr19_113)
+```
+
+Merge with the rest of the data
+
+```{r}
+ASR = ASR %>% 
+  mutate(ff_id = id) %>% 
+  dplyr::select(ff_id, INT, EXT)
+```
+
+```{r}
+data = data %>% 
+  left_join(ASR, by="ff_id")
+```
+
+# Adding Parental Psychopathology as Covariate
+
+On the plus side, it doesn't look like yr_income or parental psychopathology takes away the effects
+
+Just so we know -- below are the correlations between parental (usually maternal) psychopathology and the VE/SD composites:
+
+```{r}
+cor.test(data$ThreatCompc, data$INT)
+cor.test(data$DepCompc, data$INT)
+
+cor.test(data$ThreatCompc, data$EXT)
+cor.test(data$DepCompc, data$EXT)
+
+cor.test(data$ThreatCompc, data$yr_income)
+cor.test(data$DepCompc, data$yr_income)
+```
+
+
+
+Group Membership
+```{r}
+
+data$sub_membership[data$sub_membership==2] <- 0 # This makes it so that the effects are in the same direction (e.g. the higher violence group is a 1 and the lower violence group is the reference)
+clean.data$sub_membership[clean.data$sub_membership==2] <- 0
+
+
+motion_stress_model_wPP = glm(sub_membership ~ ThreatCompc + DepCompc + Mean_Relative_FD + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + puberty_score + ALES_events_sum  + cm1edu + m1b2 + INT + EXT + yr_income, data = data, family = "binomial")
+summary(motion_stress_model_wPP)
+exp(motion_stress_model_wPP$coefficients)
+exp(confint(motion_stress_model_wPP))
+```
+Node Degree Analyses
+```{r}
+V5_wPP = lm(V5_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + cm1edu + m1b2 + INT + EXT + yr_income, data = data)
+summary(V5_wPP)
+apa.reg.table(V5_wPP, filename = 'LIPL_wPP.doc')
+
+V11_wPP = lm(V11_Total ~ ThreatCompc + DepCompc  + Mean_Relative_FD + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + cm1edu + m1b2 + INT + EXT + yr_income, data = data)
+summary(V11_wPP)
+apa.reg.table(V11_wPP, filename = 'RIns_wPP.doc')
+```
+
+Number of Connections
+```{r}
+
+Total_mod_covariates_wPP = lm(Total_Conns ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu + INT + EXT + yr_income, data = data)
+summary(Total_mod_covariates_wPP)
+apa.reg.table(Total_mod_covariates_wPP, filename = "Total_mod_covariates_wPP.doc")
+
+SN_mod_covariates_wPP = lm(SN_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu + INT + EXT + yr_income, data = data)
+summary(SN_mod_covariates_wPP)
+apa.reg.table(SN_mod_covariates_wPP, filename = "SN_mod_covariates_wPP.doc")
+
+DMN_mod_covariates_wPP = lm(DMN_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu + INT + EXT + yr_income, data = data)
+summary(DMN_mod_covariates_wPP)
+apa.reg.table(DMN_mod_covariates_wPP, filename = "DMN_mod_covariates_wPP.doc")
+
+Inter_mod_covariates_wPP = lm(Inter_Connections ~ ThreatCompc + DepCompc + ALES_events_sum + puberty_score + Gender_0F_1M + EthnoRace_AA + EthnoRace_C + Mean_Relative_FD + m1b2 + cm1edu + INT + EXT + yr_income, data = data)
+summary(Inter_mod_covariates_wPP)
+apa.reg.table(Inter_mod_covariates_wPP, filename = "Inter_mod_covariates_wPP.doc")
+
+```
+
+The same reviewer who asked for information RE parental psychopathology asked about SES -- currently we're controlling for maternal education at birth, which I think should be sufficient given that it's a pretty strong correlation with yr income:
+
+```{r}
+cor.test(data$cm1edu, data$yr_income)
+```
+
+## Raw Scores Representing Adversity
+
+```{r}
+FullData <- read.spss('/Volumes/csmonk/csmonk-lab/Data/Fragile_Families_Longitudinal/Leigh_FFCWS/FFCW_core_ffid_transfer.sav', to.data.frame=TRUE, use.value.labels = FALSE)
+```
+
+### CTS - Primary Caregiver Report
+```{r}
+
+#CTS = FullData %>% 
+  filter(ff_id > 10000) %>% 
+  dplyr::select(IH3j1:IH3j19, IH5g1:IH5g19, p5q1a:p5q1n, p5q2a:p5q2e)
+  
+  
+is.na(Data) <- Data == -9
+is.na(Data) <- Data == -8
+is.na(Data) <- Data == -3
+is.na(Data) <- Data == -2
+is.na(Data) <- Data == -1
+is.na(Data) <- Data == -4
+is.na(Data) <- Data == -5
+is.na(Data) <- Data == -6
+
+# CTS - Age 3
+# CTS$IH3j1 = car::recode(CTS$IH3j1, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j2 = car::recode(CTS$IH3j2, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j3 = car::recode(CTS$IH3j3, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j4 = car::recode(CTS$IH3j4, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j5 = car::recode(CTS$IH3j5, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j6 = car::recode(CTS$IH3j6, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j7 = car::recode(CTS$IH3j7, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j8 = car::recode(CTS$IH3j8, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j9 = car::recode(CTS$IH3j9, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j10 = car::recode(CTS$IH3j10, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j11 = car::recode(CTS$IH3j11, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j12 = car::recode(CTS$IH3j12, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j13 = car::recode(CTS$IH3j13, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j14 = car::recode(CTS$IH3j14, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j15 = car::recode(CTS$IH3j15, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j16 = car::recode(CTS$IH3j16, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j17 = car::recode(CTS$IH3j17, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j18 = car::recode(CTS$IH3j18, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH3j19 = car::recode(CTS$IH3j19, "6=25; 5=15; 4=8; 3=4")
+
+# CTS - Age 5
+# CTS$IH5g1 = car::recode(CTS$IH5g1, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g2 = car::recode(CTS$IH5g2, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g3 = car::recode(CTS$IH5g3, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g4 = car::recode(CTS$IH5g4, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g5 = car::recode(CTS$IH5g5, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g6 = car::recode(CTS$IH5g6, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g7 = car::recode(CTS$IH5g7, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g8 = car::recode(CTS$IH5g8, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g9 = car::recode(CTS$IH5g9, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g10 = car::recode(CTS$IH5g10, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g11 = car::recode(CTS$IH5g11, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g12 = car::recode(CTS$IH5g12, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g13 = car::recode(CTS$IH5g13, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g14 = car::recode(CTS$IH5g14, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g15 = car::recode(CTS$IH5g15, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g16 = car::recode(CTS$IH5g16, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g17 = car::recode(CTS$IH5g17, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g18 = car::recode(CTS$IH5g18, "6=25; 5=15; 4=8; 3=4")
+# CTS$IH5g19 = car::recode(CTS$IH5g19, "6=25; 5=15; 4=8; 3=4")
+
+# CTS - Age 9
+# CTS$p5q1a = car::recode(CTS$p5q1a, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1b = car::recode(CTS$p5q1b, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1c = car::recode(CTS$p5q1c, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1d = car::recode(CTS$p5q1d, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1e = car::recode(CTS$p5q1e, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1f = car::recode(CTS$p5q1f, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1g = car::recode(CTS$p5q1g, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1h = car::recode(CTS$p5q1h, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1i = car::recode(CTS$p5q1i, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1j = car::recode(CTS$p5q1j, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1k = car::recode(CTS$p5q1k, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1l = car::recode(CTS$p5q1l, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1m = car::recode(CTS$p5q1m, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q1n = car::recode(CTS$p5q1n, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q2a = car::recode(CTS$p5q2a, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q2b = car::recode(CTS$p5q2b, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q2c = car::recode(CTS$p5q2c, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q2d = car::recode(CTS$p5q2d, "6=25; 5=15; 4=8; 3=4")
+# CTS$p5q2e = car::recode(CTS$p5q2e, "6=25; 5=15; 4=8; 3=4")
+
+# Abuse - Age 3
+Data$IH3j7<-car::recode(Data$IH3j7 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j4<-car::recode(Data$IH3j4 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j11<-car::recode(Data$IH3j11 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j13<-car::recode(Data$IH3j13 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j3<-car::recode(Data$IH3j3, "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j14<-car::recode(Data$IH3j14 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j9<-car::recode(Data$IH3j9 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j8<-car::recode(Data$IH3j8 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j6<-car::recode(Data$IH3j6 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j10<-car::recode(Data$IH3j10 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+
+# Abuse - Age 5
+Data$IH5g7<-car::recode(Data$IH5g7 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g4<-car::recode(Data$IH5g4 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g11<-car::recode(Data$IH5g11 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g13<-car::recode(Data$IH5g13 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g3<-car::recode(Data$IH5g3 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g14<-car::recode(Data$IH5g14 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g9<-car::recode(Data$IH5g9 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g8<-car::recode(Data$IH5g8 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g6<-car::recode(Data$IH5g6 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g10<-car::recode(Data$IH5g10 , "6=25; 5=15; 4=8; 3=4; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+
+# Abuse - Age 9
+Data$p5q1g<-car::recode(Data$p5q1g, "6=25; 5=15; 4=8; 3=4; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1d<-car::recode(Data$p5q1d, "6=25; 5=15; 4=8; 3=4; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1k<-car::recode(Data$p5q1k, "6=25; 5=15; 4=8; 3=4; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1m<-car::recode(Data$p5q1m, "6=25; 5=15; 4=8; 3=4; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1c<-car::recode(Data$p5q1c, "6=25; 5=15; 4=8; 3=4; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1n<-car::recode(Data$p5q1n, "6=25; 5=15; 4=8; 3=4; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1i<-car::recode(Data$p5q1i, "6=25; 5=15; 4=8; 3=4; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1h<-car::recode(Data$p5q1h, "6=25; 5=15; 4=8; 3=4; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1f<-car::recode(Data$p5q1f, "6=25; 5=15; 4=8; 3=4; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1j<-car::recode(Data$p5q1j, "6=25; 5=15; 4=8; 3=4; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+
+
+Data %>% 
+  mutate(Abuse3_Sum = IH3j7+ IH3j4+ IH3j11+ IH3j13+ IH3j3+ IH3j14+ IH3j9+ IH3j8+ IH3j6+ IH3j10, 
+         Abuse5_Sum = IH5g7 + IH5g4 + IH5g11 + IH5g13 + IH5g3 + IH5g14 + IH5g9 + IH5g8 + IH5g6 + IH5g10,
+         Abuse9_Sum = p5q1g + p5q1d + p5q1k + p5q1m + p5q1c + p5q1n + p5q1i + p5q1h + p5q1f + p5q1j) %>% 
+  mutate(Abuse3_Avg = Abuse3_Sum/10,
+         Abuse5_Avg = Abuse5_Sum/10,
+         Abuse9_Avg = Abuse9_Sum/10) %>% 
+  summarize(Age3_Abuse = mean(Abuse3_Sum, na.rm = TRUE),
+            Age5_Abuse = mean(Abuse5_Sum, na.rm = TRUE),
+            Age9_Abuse = mean(Abuse9_Sum, na.rm = TRUE),
+            Age3_Avg_Abuse = mean(Abuse3_Avg, na.rm = TRUE),
+            Age5_Avg_Abuse = mean(Abuse5_Avg, na.rm = TRUE),
+            Age9_Avg_Abuse = mean(Abuse9_Avg, na.rm = TRUE))
+
+
+
+
+
+
+```
+
+Another potential way to do the CTS scores is the prevalence (e.g. 0 or 1 for whether they happened at all -- I'll see if that's more meaningful, because right now I'm having a bit of a difficult time interpreting what any of the average and sum scores would mean)
+
+```{r}
+
+# Abuse - Age 3
+Data$IH3j7_bin<-car::recode(Data$IH3j7 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j4_bin<-car::recode(Data$IH3j4 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j11_bin<-car::recode(Data$IH3j11 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j13_bin<-car::recode(Data$IH3j13 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j3_bin<-car::recode(Data$IH3j3, "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j14_bin<-car::recode(Data$IH3j14 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j9_bin<-car::recode(Data$IH3j9 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j8_bin<-car::recode(Data$IH3j8 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j6_bin<-car::recode(Data$IH3j6 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j10_bin<-car::recode(Data$IH3j10 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+
+# Abuse - Age 5
+Data$IH5g7_bin<-car::recode(Data$IH5g7 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g4_bin<-car::recode(Data$IH5g4 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g11_bin<-car::recode(Data$IH5g11 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g13_bin<-car::recode(Data$IH5g13 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g3_bin<-car::recode(Data$IH5g3 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g14_bin<-car::recode(Data$IH5g14 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g9_bin<-car::recode(Data$IH5g9 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g8_bin<-car::recode(Data$IH5g8 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g6_bin<-car::recode(Data$IH5g6 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g10_bin<-car::recode(Data$IH5g10 , "c(2,4,8,15,25)=1; c(7,8)=0", as.numeric=TRUE,as.factor=FALSE)
+
+# Abuse - Age 9
+Data$p5q1g_bin<-car::recode(Data$p5q1g, "c(2,4,8,15,25)=1; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1d_bin<-car::recode(Data$p5q1d, "c(2,4,8,15,25)=1; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1k_bin<-car::recode(Data$p5q1k, "c(2,4,8,15,25)=1; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1m_bin<-car::recode(Data$p5q1m, "c(2,4,8,15,25)=1; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1c_bin<-car::recode(Data$p5q1c, "c(2,4,8,15,25)=1; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1n_bin<-car::recode(Data$p5q1n, "c(2,4,8,15,25)=1; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1i_bin<-car::recode(Data$p5q1i, "c(2,4,8,15,25)=1; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1h_bin<-car::recode(Data$p5q1h, "c(2,4,8,15,25)=1; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1f_bin<-car::recode(Data$p5q1f, "c(2,4,8,15,25)=1; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+Data$p5q1j_bin<-car::recode(Data$p5q1j, "c(2,4,8,15,25)=1; c(7,8) = 0",  as.numeric = TRUE, as.factor =FALSE)
+
+```
+
+```{r}
+Data %>% 
+  mutate(Abuse3_bin_Sum = IH3j7_bin + IH3j4_bin+ IH3j11_bin + IH3j13_bin + IH3j3_bin + IH3j14_bin + IH3j9_bin + IH3j8_bin + IH3j6_bin + IH3j10_bin, 
+         Abuse5_bin_Sum = IH5g7_bin + IH5g4_bin + IH5g11_bin + IH5g13_bin + IH5g3_bin + IH5g14_bin + IH5g9_bin + IH5g8_bin + IH5g6_bin + IH5g10_bin,
+         Abuse9_bin_Sum = p5q1g_bin + p5q1d_bin + p5q1k_bin + p5q1m_bin + p5q1c_bin + p5q1n_bin + p5q1i_bin + p5q1h_bin + p5q1f_bin + p5q1j_bin,
+         Abuse_Avg = (Abuse3_bin_Sum + Abuse5_bin_Sum + Abuse9_bin_Sum)/3) %>% 
+  summarize(mean(Abuse3_bin_Sum, na.rm = TRUE),
+            sd(Abuse3_bin_Sum, na.rm = TRUE),
+            min(Abuse3_bin_Sum, na.rm = TRUE),
+            max(Abuse3_bin_Sum, na.rm = TRUE),
+            mean(Abuse5_bin_Sum, na.rm = TRUE),
+            sd(Abuse5_bin_Sum, na.rm = TRUE),
+            min(Abuse5_bin_Sum, na.rm = TRUE),
+            max(Abuse5_bin_Sum, na.rm = TRUE),
+            mean(Abuse9_bin_Sum, na.rm = TRUE),
+            sd(Abuse9_bin_Sum, na.rm = TRUE),
+            min(Abuse9_bin_Sum, na.rm = TRUE),
+            max(Abuse9_bin_Sum, na.rm = TRUE),
+            mean(Abuse_Avg, na.rm = TRUE),
+            sd(Abuse_Avg, na.rm = TRUE),
+            min(Abuse_Avg, na.rm = TRUE),
+            max(Abuse_Avg, na.rm = TRUE))
+```
+
+I think this makes more sense -- for example, at age 3, each focal child has on average experienced over 3 of the abuse types, ranging from 0 - 10 with a stdev of 1.8 events. I then did this for across all ages, because that's what we're using in the composite. Hopefully that's helpful/informative. I'll just do that for all of the categories -- or for as many as make sense. 
+
+```{r}
+
+# Neglect - Age 3
+Data$IH3j15_bin<-recode(Data$IH3j15 , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j16_bin<-recode(Data$IH3j16 , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j17_bin<-recode(Data$IH3j17 , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j18_bin<-recode(Data$IH3j18 , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+Data$IH3j19_bin<-recode(Data$IH3j19 , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+
+# Neglect - Age 5
+Data$IH5g15_bin<-recode(Data$IH5g15 , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g16_bin<-recode(Data$IH5g16 , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g17_bin<-recode(Data$IH5g17 , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g18_bin<-recode(Data$IH5g18 , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+Data$IH5g19_bin<-recode(Data$IH5g19 , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+
+# Neglect - Age 9
+Data$p5q2a_bin<-recode(Data$p5q2a , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+Data$p5q2b_bin<-recode(Data$p5q2b , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+Data$p5q2c_bin<-recode(Data$p5q2c , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+Data$p5q2d_bin<-recode(Data$p5q2d , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+Data$p5q2e_bin<-recode(Data$p5q2e , "c(2,3,4,5,6) = 1; c(7,8) = 0",as.numeric=TRUE,as.factor=FALSE)
+```
+
+```{r}
+Data %>% 
+  mutate(Neglect3_bin_Sum = IH3j15_bin + IH3j16_bin + IH3j17_bin + IH3j18_bin + IH3j19_bin,
+         Neglect5_bin_Sum = IH5g15_bin + IH5g16_bin + IH5g17_bin + IH5g18_bin + IH5g19_bin,
+         Neglect9_bin_Sum = p5q2a_bin + p5q2b_bin + p5q2c_bin + p5q2d_bin + p5q2e_bin,
+         Neglect_Avg = (Neglect3_bin_Sum + Neglect5_bin_Sum + Neglect9_bin_Sum)/3) %>% 
+  #group_by(Neglect9_bin_Sum) %>% 
+  #summarize(n())
+  summarize(mean(Neglect_Avg, na.rm = TRUE),
+            sd(Neglect_Avg, na.rm = TRUE), 
+            min(Neglect_Avg, na.rm = TRUE),
+            max(Neglect_Avg, na.rm = TRUE))
+```
+
+### Neighborhood Violence
+
+
+Right now, this looks to be on a how often scale -- I'm going to change it to a binary (has/hasn't)
+```{r}
+
+Data$IH3l1_bin = recode(Data$IH3l1, "c(2,3,4)=1",as.numeric=TRUE,as.factor=FALSE)
+Data$IH3l3_bin = recode(Data$IH3l3, "c(2,3,4)=1",as.numeric=TRUE,as.factor=FALSE)
+Data$IH3l5_bin = recode(Data$IH3l5, "c(2,3,4)=1",as.numeric=TRUE,as.factor=FALSE)
+Data$IH3l7_bin = recode(Data$IH3l7, "c(2,3,4)=1",as.numeric=TRUE,as.factor=FALSE)
+
+Data$IH5h1_bin = recode(Data$IH5h1, "c(2,3,4)=1",as.numeric=TRUE,as.factor=FALSE)
+Data$IH5h3_bin = recode(Data$IH5h3, "c(2,3,4)=1",as.numeric=TRUE,as.factor=FALSE)
+Data$IH5h5_bin = recode(Data$IH5h5, "c(2,3,4)=1",as.numeric=TRUE,as.factor=FALSE)
+Data$IH5h7_bin = recode(Data$IH5h7, "c(2,3,4)=1",as.numeric=TRUE,as.factor=FALSE)
+
+Data$p5m5a_bin = recode(Data$p5m5a, "c(2,3,4)=1",as.numeric=TRUE,as.factor=FALSE)
+Data$p5m5b_bin = recode(Data$p5m5b, "c(2,3,4)=1",as.numeric=TRUE,as.factor=FALSE)
+
+
+
+
+Data$CV.Age3.Witness.KillIncluded = Data$IH3l1 + Data$IH3l3 + Data$IH3l5 + Data$IH3l7
+Data$CV.Age3.Witness = Data$IH3l1 + Data$IH3l3 + Data$IH3l5
+Data$CV.Age5.Witness.KillIncluded = Data$IH5h1 + Data$IH5h3 + Data$IH5h5 + Data$IH5h7
+Data$CV.Age5.Witness = Data$IH5h1 + Data$IH5h3 + Data$IH5h5 
+Data$CV.Age9.Witness = Data$p5m5a + Data$p5m5b + Data$p5m5c
+Data$CV.Age3.Victim = Data$IH3l2 + Data$IH3l4 + Data$IH3l6
+Data$CV.Age5.Victim = Data$IH5h2 + Data$IH5h4 + Data$IH5h6
+Data$Age3.CV = Data$CV.Age3.Witness.KillIncluded + Data$CV.Age3.Victim
+Data$Age5.CV = Data$CV.Age5.Witness.KillIncluded + Data$CV.Age5.Victim
+Data$Age9.CV = Data$CV.Age9.Witness
+```
+
+
